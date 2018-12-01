@@ -138,6 +138,8 @@ class Query implements QueryInterface, InjectionAwareInterface
 
 	protected _sharedLock;
 
+	protected _resultsetRowClass;
+
 	/**
 	 * TransactionInterface so that the query can wrap a transaction
 	 * around batch updates and intermediate selects within the transaction.
@@ -178,6 +180,8 @@ class Query implements QueryInterface, InjectionAwareInterface
 		} else {
 			let this->_enableImplicitJoins = globals_get("orm.enable_implicit_joins");
 		}
+
+		let this->_resultsetRowClass = "\\Phalcon\\Mvc\\Model\\Row";
 	}
 
 	/**
@@ -2553,6 +2557,24 @@ class Query implements QueryInterface, InjectionAwareInterface
 	}
 
 	/**
+	 * Sets the class of the rows returned in the Resultset
+	 * @param string resultsetRowClass e.g. \Phalcon\Mvc\Model\Row
+	 */
+	public function setResultsetRowClass(var resultsetRowClass)
+	{
+		let this->_resultsetRowClass = resultsetRowClass;
+		return this;
+	}
+
+	/**
+	 * Returns the class to use for rows returned in a Resultset
+	 */
+	public function getResultsetRowClass() -> string
+	{
+		return this->_resultsetRowClass;
+	}
+
+	/**
 	 * Executes the SELECT intermediate representation producing a Phalcon\Mvc\Model\Resultset
 	 */
 	protected final function _executeSelect(var intermediate, var bindParams, var bindTypes, boolean simulate = false) -> <ResultsetInterface> | array
@@ -2811,9 +2833,17 @@ class Query implements QueryInterface, InjectionAwareInterface
 			if isSimpleStd === true {
 
 				/**
-				 * If the result is a simple standard object use an Phalcon\Mvc\Model\Row as base
+				 * If the result is a simple standard object use an Phalcon\Mvc\Model\Row as base by default.
+				 * Or use setResultsetRowClass() to override when building the query
 				 */
-				let resultObject = new Row();
+				var resultObjectClass = this->getResultsetRowClass();
+				if ! class_exists(resultObjectClass) {
+					throw new Exception("Resultset row class \"" . resultObjectClass . "\" not found");
+				}
+				if $resultObjectClass != "\\Phalcon\\Mvc\\Model\\Row" && ! is_subclass_of(resultObjectClass, "Phalcon\\Mvc\\Model\\Row") {
+					throw new Exception("Resultset row class \"" . resultObjectClass . "\" must extend Phalcon\\Mvc\\Model\\Row");
+				}
+				let resultObject = new {resultObjectClass}();
 
 				/**
 				 * Standard objects can't keep snapshots
